@@ -1,0 +1,41 @@
+.env
+package-lock.json
+package.json
+tsconfig.json
+node_modules/
+dist/
+.vscode/
+.idea/
+ecosystem.config.js
+.DS_Store
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+coverage/
+.cache/
+.next/
+out/
+*.local
+*.tsbuildinfo
+*.swp
+*.swo
+*.swn
+*.swo
+*.swn
+
+# Mac System files
+.DS_Store
+
+# Windows System files
+Thumbs.db
+
+# Editor directories and files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
