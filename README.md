@@ -38,23 +38,3 @@ Siga os passos abaixo para rodar o projeto localmente:
 2. **Instale as dependências**
    ```bash
    npm install
-
-2. **Configure as variáveis de ambiente
-Crie um arquivo .env na raiz do projeto para armazenar suas configurações sensíveis:**
-
-# Token do seu bot (obrigatório)
- BOT_TOKEN=seu_token_aqui_obtido_no_botfather
-
-# Outras configurações (se aplicável)
-# DATABASE_URL=postgresql://usuario:senha@localhost:5432/deckbot
-# NODE_ENV=development
-
-# ⚠️ Importante: Nunca commite o arquivo .env. Ele já está listado no .gitignore para proteger suas credenciais.
-
-4. **Execute o bot**
-   Você pode rodar o projeto de duas formas:
-    
-   # Modo	                 Comando	                Descrição
-    Desenvolvimento	     npm run dev	            Inicia com recarga automática (hot-reload) usando ts-node. Ideal para testes e desenvolvimento.
-    Produção	           npm run build
-                         npm start	              Compila o TypeScript para JavaScript e executa o código otimizado. Recomendado para deploy.
