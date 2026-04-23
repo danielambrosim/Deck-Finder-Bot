@@ -38,3 +38,18 @@ Siga os passos abaixo para rodar o projeto localmente:
 2. **Instale as dependências**
    ```bash
    npm install
+
+3. **.env Exemplo**
+   ```bash
+````
+      # Token do Bot do Telegram (OBRIGATÓRIO)
+      # Obtenha em: https://t.me/BotFather
+      BOT_TOKEN=seu_token_aqui_12345:ABCDEFGHIJKLMNOPQRSTUVWXYZ
+      
+      # Configurações do Puppeteer (opcionais)
+      PUPPETEER_HEADLESS=true
+      PUPPETEER_TIMEOUT=30000
+      
+      # Configurações do Bot (opcionais)
+      MAX_DECKS=3
+      ENABLE_PDF_GENERATION=true
