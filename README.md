@@ -41,7 +41,6 @@ Siga os passos abaixo para rodar o projeto localmente:
 
 3. **.env Exemplo**
    ```bash
-````
       # Token do Bot do Telegram (OBRIGATÓRIO)
       # Obtenha em: https://t.me/BotFather
       BOT_TOKEN=seu_token_aqui_12345:ABCDEFGHIJKLMNOPQRSTUVWXYZ
