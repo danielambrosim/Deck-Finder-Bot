@@ -89,7 +89,7 @@ async function saveToHistory(decks: Array<{title: string, url: string}>) {
 // Handlers do Bot
 bot.start((ctx) => {
   DeckBotLogger.info(`Usuário ${ctx.from?.id} iniciou o bot`);
-  ctx.reply('🎴 Olá! Sou o bot de decks do Limitless. Use /topdecks para ver os melhores decks.');
+  ctx.reply('🎴 Olá! Sou o PokéDeck. Use /topdecks para ver os melhores decks.');
 });
 
 bot.help((ctx) => {
