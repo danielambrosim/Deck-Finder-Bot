@@ -1,6 +1,6 @@
 # 🃏 Deck Finder Bot
 
-Um bot para Telegram que ajuda você a encontrar decks de cartas (de TCGs como Magic: The Gathering, Pokémon, Yu-Gi-Oh!, etc.) utilizando web scraping e uma interface simples e interativa.
+Um bot para Telegram que ajuda você a encontrar decks de cartas Pokémon utilizando web scraping e uma interface simples e interativa.
 
 ## ✨ Funcionalidades
 
