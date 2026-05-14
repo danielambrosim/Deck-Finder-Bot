@@ -1,0 +1,4 @@
+Modificar o Bot, para ele ser por enquanto um entregador de Deck de Pokémon.
+Verificar a parte de scrump, para que: ao invés dele precisar acessar de uma máquina local, ele já ter acesso do navegador (chrome ou firefox).
+Implementar um banco de dados para guardar os PDF's. Lembrando sempre o dia screenshot tirado. 
+Não ter ainda nada relacionado à "mudança de meta", para não confundir o sistema do bot. Será somente capturar os "TOP's 3 DECK's de POKÉMON" atuais.
