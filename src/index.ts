@@ -3,9 +3,9 @@ import PDFDocument from 'pdfkit';
 import fs from 'fs/promises';
 import * as fsSync from 'fs'; // Import para funções síncronas
 import path from 'path';
-import { getTopDecks, screenshotDeckPage } from './topDecks.js';
+import { getTopDecks, screenshotDeckPage, closeBrowser } from './topDecks.js';
 
-// Configuração
+// Configuração 
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -224,5 +224,18 @@ async function startBot() {
     process.exit(1);
   }
 }
+
+// Graceful shutdown - Atualize estas funções
+process.once('SIGINT', async () => {
+  DeckBotLogger.info('Encerrando bot (SIGINT)');
+  await closeBrowser(); // Fecha o browser
+  bot.stop('SIGINT');
+});
+
+process.once('SIGTERM', async () => {
+  DeckBotLogger.info('Encerrando bot (SIGTERM)');
+  await closeBrowser(); // Fecha o browser
+  bot.stop('SIGTERM');
+});
 
 startBot();
