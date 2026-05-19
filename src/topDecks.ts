@@ -2,12 +2,24 @@ import puppeteer, { Browser, Page } from 'puppeteer';
 import path from 'path';
 import fs from 'fs/promises';
 
-// 🔧 NOVA LINHA - Browser compartilhado
 let sharedBrowser: Browser | null = null;
 
-// Configurações
+// Detecta o caminho do Chrome baseado no SO
+function getChromePath(): string | undefined {
+  switch (process.platform) {
+    case 'win32':
+      return 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+    case 'darwin': // macOS
+      return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+    case 'linux':
+      return '/usr/bin/google-chrome';
+    default:
+      return undefined; // Usa o Chromium padrão do puppeteer
+  }
+}
+
 const PUPPETEER_OPTIONS = {
-  headless: true, // Corrigido: boolean em vez de string
+  headless: true,
   args: [
     '--no-sandbox',
     '--disable-setuid-sandbox',
@@ -20,11 +32,11 @@ const PUPPETEER_OPTIONS = {
 };
 
 const BASE_URL = 'https://limitlesstcg.com';
-const DECKLIST_SELECTOR = '.decklist-container';
-const DECK_TABLE_SELECTOR = 'table a';
 const SCREENSHOTS_DIR = path.join(process.cwd(), 'screenshots');
 
-// Logger específico para o módulo
+// Função auxiliar para delay
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 class DeckScraperLogger {
   static info(message: string, ...args: any[]) {
     console.log(`[SCRAPER] ${new Date().toISOString()} - ${message}`, ...args);
@@ -33,9 +45,12 @@ class DeckScraperLogger {
   static error(message: string, error?: any) {
     console.error(`[SCRAPER ERROR] ${new Date().toISOString()} - ${message}`, error);
   }
+
+  static warn(message: string, ...args: any[]) {
+    console.warn(`[SCRAPER WARN] ${new Date().toISOString()} - ${message}`, ...args);
+  }
 }
 
-// Utilitários
 async function ensureScreenshotsDir(): Promise<void> {
   try {
     await fs.mkdir(SCREENSHOTS_DIR, { recursive: true });
@@ -46,42 +61,60 @@ async function ensureScreenshotsDir(): Promise<void> {
   }
 }
 
-// Função para obter o browser compartilhado
 async function getBrowser(): Promise<Browser> {
   if (!sharedBrowser) {
     DeckScraperLogger.info('Criando navegador Chrome...');
-    sharedBrowser = await puppeteer.launch({
-      executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    
+    const chromePath = getChromePath();
+    const launchOptions: any = {
       headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--disable-gpu'
-      ]
-    });
-    DeckScraperLogger.info('Navegador Chrome criado com sucesso');
+      args: PUPPETEER_OPTIONS.args
+    };
+    
+    if (chromePath) {
+      launchOptions.executablePath = chromePath;
+      DeckScraperLogger.info(`Usando Chrome em: ${chromePath}`);
+    } else {
+      DeckScraperLogger.info('Usando Chromium padrão do Puppeteer');
+    }
+    
+    try {
+      sharedBrowser = await puppeteer.launch(launchOptions);
+      DeckScraperLogger.info('Navegador criado com sucesso');
+    } catch (error) {
+      DeckScraperLogger.error('Erro ao criar navegador, tentando sem executablePath', error);
+      sharedBrowser = await puppeteer.launch({
+        headless: true,
+        args: PUPPETEER_OPTIONS.args
+      });
+    }
   }
   return sharedBrowser;
 }
 
-// Função para fechar o browser (chamar quando o bot encerrar)
 export async function closeBrowser(): Promise<void> {
   if (sharedBrowser) {
     await sharedBrowser.close();
     sharedBrowser = null;
-    DeckScraperLogger.info('Navegador Chrome fechado');
+    DeckScraperLogger.info('Navegador fechado');
   }
 }
 
-// Criar uma página nova usando o browser compartilhado
 async function withPage<T>(operation: (page: Page) => Promise<T>): Promise<T> {
   const browser = await getBrowser();
   const page = await browser.newPage();
   
   await page.setViewport({ width: 1920, height: 1080 });
-  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+  
+  // Adiciona headers para parecer mais realista
+  await page.setExtraHTTPHeaders({
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1'
+  });
 
   try {
     return await operation(page);
@@ -92,7 +125,6 @@ async function withPage<T>(operation: (page: Page) => Promise<T>): Promise<T> {
   }
 }
 
-// Funções principais
 export interface DeckInfo {
   title: string;
   url: string;
@@ -105,35 +137,130 @@ export async function getTopDecks(limit = 3): Promise<DeckInfo[]> {
 
   return await withPage(async (page) => {
     try {
+      // Acessa a página de decks
       await page.goto(`${BASE_URL}/decks`, { 
-        waitUntil: 'networkidle2',
-        timeout: 30000 
+        waitUntil: 'networkidle0',
+        timeout: 45000 
       });
-
-      await page.waitForSelector(DECK_TABLE_SELECTOR, { timeout: 15000 });
-
-      const decks = await page.evaluate((limit, baseUrl) => {
-        const rows = Array.from(document.querySelectorAll('table tbody tr')).slice(0, limit);
-        
-        return rows.map((row, index) => {
-          const link = row.querySelector('a');
-          const cells = row.querySelectorAll('td');
-          const playerCell = cells[1]?.textContent?.trim();
-          const title = link?.textContent?.trim() || `Deck ${index + 1}`;
-          const url = link?.getAttribute('href') || '';
-
-          return {
-            title,
-            url: url.startsWith('http') ? url : baseUrl + url,
-            position: index + 1,
-            player: playerCell || 'Não informado'
-          };
+      
+      // Aguarda conteúdo carregar
+      await delay(3000);
+      
+      // Verifica se há bloqueio (Cloudflare, etc)
+      const pageContent = await page.content();
+      if (pageContent.includes('captcha') || pageContent.includes('Access Denied')) {
+        throw new Error('Site bloqueou o acesso (possível Cloudflare)');
+      }
+      
+      let decks: DeckInfo[] = [];
+      
+      // ESTRATÉGIA 1: Links que contêm '/deck/'
+      DeckScraperLogger.info('Tentando extrair decks via links /deck/...');
+      decks = await page.evaluate((baseUrl) => {
+        const allLinks = Array.from(document.querySelectorAll('a'));
+        const deckLinks = allLinks.filter(link => {
+          const href = link.getAttribute('href');
+          return href && href.includes('/deck/') && !href.includes('/decks/');
         });
-      }, limit, BASE_URL);
-
-      DeckScraperLogger.info(`Encontrados ${decks.length} decks`);
-      return decks;
-
+        
+        // Remove duplicatas baseado na URL
+        const uniqueLinks = new Map();
+        deckLinks.forEach(link => {
+          const href = link.getAttribute('href');
+          if (href && !uniqueLinks.has(href)) {
+            uniqueLinks.set(href, link);
+          }
+        });
+        
+        return Array.from(uniqueLinks.values()).slice(0, 10).map((link, idx) => ({
+          title: link.textContent?.trim() || link.getAttribute('title') || `Deck ${idx + 1}`,
+          url: link.getAttribute('href') || '',
+          position: idx + 1,
+          player: 'Informação não disponível'
+        }));
+      }, BASE_URL);
+      
+      if (decks.length > 0) {
+        decks = decks.map(deck => ({
+          ...deck,
+          url: deck.url.startsWith('http') ? deck.url : BASE_URL + deck.url
+        }));
+        DeckScraperLogger.info(`Estratégia 1 encontrou ${decks.length} decks`);
+      }
+      
+      // ESTRATÉGIA 2: Tabela tradicional
+      if (decks.length === 0) {
+        DeckScraperLogger.info('Tentando extrair decks via tabela...');
+        decks = await page.evaluate((limit, baseUrl) => {
+          const rows = Array.from(document.querySelectorAll('table tbody tr, .deck-row, [data-deck-id]')).slice(0, limit);
+          
+          return rows.map((row, index) => {
+            const link = row.querySelector('a');
+            const cells = row.querySelectorAll('td');
+            const playerCell = cells[1]?.textContent?.trim() || cells[2]?.textContent?.trim();
+            const title = link?.textContent?.trim() || link?.getAttribute('title') || `Deck ${index + 1}`;
+            const url = link?.getAttribute('href') || '';
+            
+            return {
+              title,
+              url: url.startsWith('http') ? url : baseUrl + url,
+              position: index + 1,
+              player: playerCell || 'Não informado'
+            };
+          });
+        }, limit, BASE_URL);
+        
+        if (decks.length > 0) {
+          DeckScraperLogger.info(`Estratégia 2 encontrou ${decks.length} decks`);
+        }
+      }
+      
+      // ESTRATÉGIA 3: Qualquer link que pareça ser de deck
+      if (decks.length === 0) {
+        DeckScraperLogger.info('Tentando extrair decks via links genéricos...');
+        decks = await page.evaluate((baseUrl) => {
+          const allLinks = Array.from(document.querySelectorAll('a'));
+          const possibleDeckLinks = allLinks.filter(link => {
+            const href = link.getAttribute('href');
+            const text = link.textContent || '';
+            return href && (
+              href.match(/\/deck\/\d+/) ||
+              text.match(/deck/i) ||
+              link.className.match(/deck/i)
+            );
+          }).slice(0, 5);
+          
+          return possibleDeckLinks.map((link, idx) => ({
+            title: link.textContent?.trim() || `Deck ${idx + 1}`,
+            url: link.getAttribute('href') || '',
+            position: idx + 1,
+            player: 'Informação não disponível'
+          }));
+        }, BASE_URL);
+        
+        decks = decks.map(deck => ({
+          ...deck,
+          url: deck.url.startsWith('http') ? deck.url : BASE_URL + deck.url
+        }));
+        
+        if (decks.length > 0) {
+          DeckScraperLogger.info(`Estratégia 3 encontrou ${decks.length} decks`);
+        }
+      }
+      
+      if (decks.length === 0) {
+        // Salva HTML para debug
+        const html = await page.content();
+        await fs.writeFile('debug_limitless_page.html', html);
+        DeckScraperLogger.error('Nenhum deck encontrado. HTML salvo em debug_limitless_page.html');
+        throw new Error('Nenhum deck encontrado na página');
+      }
+      
+      // Retorna apenas os primeiros 'limit' decks
+      const result = decks.slice(0, limit);
+      DeckScraperLogger.info(`Total de ${result.length} decks extraídos com sucesso`);
+      return result;
+      
     } catch (error) {
       DeckScraperLogger.error('Erro ao buscar decks', error);
       throw new Error(`Falha ao buscar decks: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
@@ -142,40 +269,98 @@ export async function getTopDecks(limit = 3): Promise<DeckInfo[]> {
 }
 
 export async function screenshotDeckPage(deckUrl: string, fileName: string): Promise<string> {
-  DeckScraperLogger.info(`Capturando screenshot: ${fileName}`);
+  DeckScraperLogger.info(`Capturando screenshot: ${fileName} - URL: ${deckUrl}`);
 
   await ensureScreenshotsDir();
 
   return await withPage(async (page) => {
     try {
+      // Acessa a página do deck
       await page.goto(deckUrl, { 
-        waitUntil: 'networkidle2',
-        timeout: 30000 
+        waitUntil: 'networkidle0',
+        timeout: 45000 
       });
-
-      await page.waitForSelector(DECKLIST_SELECTOR, { timeout: 15000 });
-
+      
+      // Aguarda conteúdo carregar
+      await delay(5000);
+      
+      // Verifica se a página carregou corretamente
+      const pageContent = await page.content();
+      if (pageContent.includes('404') || pageContent.includes('Not Found')) {
+        throw new Error('Página do deck não encontrada (404)');
+      }
+      
       const screenshotPath = path.join(SCREENSHOTS_DIR, fileName);
-      const element = await page.$(DECKLIST_SELECTOR);
-
+      
+      // Lista de seletores possíveis para o conteúdo do deck
+      const selectorsToTry = [
+        '.decklist-container',
+        '.deck-list', 
+        '.decklist',
+        '[class*="decklist"]',
+        '[class*="deck-list"]',
+        '.card-grid',
+        '[class*="card-list"]',
+        '[class*="cards"]',
+        'main .container',
+        '#deck-area',
+        '.container.mt-4',
+        'body > div:nth-child(3)'
+      ];
+      
+      let element = null;
+      let usedSelector = '';
+      
+      // Tenta encontrar o elemento do deck
+      for (const selector of selectorsToTry) {
+        try {
+          await page.waitForSelector(selector, { timeout: 3000 });
+          element = await page.$(selector);
+          if (element) {
+            usedSelector = selector;
+            DeckScraperLogger.info(`Elemento encontrado com seletor: ${selector}`);
+            break;
+          }
+        } catch (e) {
+          // Continua tentando
+        }
+      }
+      
+      // Se não encontrou elemento específico, tenta encontrar cards individuais
       if (!element) {
-        throw new Error(`Elemento não encontrado: ${DECKLIST_SELECTOR}`);
+        DeckScraperLogger.warn('Buscando por cards individuais...');
+        const cards = await page.$$('.card, [class*="card"], [class*="Card"]');
+        
+        if (cards.length > 0) {
+          DeckScraperLogger.info(`Encontrados ${cards.length} cards, capturando o primeiro`);
+          element = cards[0];
+          usedSelector = 'individual-card';
+        }
       }
-
-      await element.screenshot({ 
-        path: screenshotPath,
-        type: 'png'
-      });
-
-      try {
-        await fs.access(screenshotPath);
-        DeckScraperLogger.info(`Screenshot salvo: ${screenshotPath}`);
-      } catch {
-        throw new Error('Falha ao salvar screenshot');
+      
+      // Captura o screenshot
+      if (!element) {
+        DeckScraperLogger.warn('Nenhum elemento específico encontrado, capturando página inteira');
+        await page.screenshot({ 
+          path: screenshotPath, 
+          fullPage: true 
+        });
+      } else {
+        await element.screenshot({ 
+          path: screenshotPath,
+          type: 'png'
+        });
       }
-
+      
+      // Verifica se o screenshot foi criado com sucesso
+      const stats = await fs.stat(screenshotPath).catch(() => null);
+      if (!stats || stats.size === 0) {
+        throw new Error('Screenshot vazio ou não criado');
+      }
+      
+      DeckScraperLogger.info(`Screenshot salvo: ${screenshotPath} (${(stats.size / 1024).toFixed(2)} KB)`);
       return screenshotPath;
-
+      
     } catch (error) {
       DeckScraperLogger.error(`Erro ao capturar screenshot de ${deckUrl}`, error);
       throw new Error(`Falha ao capturar screenshot: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
@@ -183,36 +368,47 @@ export async function screenshotDeckPage(deckUrl: string, fileName: string): Pro
   });
 }
 
-// Função adicional para buscar informações detalhadas do deck
 export async function getDeckDetailedInfo(deckUrl: string): Promise<any> {
   DeckScraperLogger.info(`Buscando informações detalhadas: ${deckUrl}`);
 
   return await withPage(async (page) => {
     try {
-      await page.goto(deckUrl, { waitUntil: 'networkidle2' });
+      await page.goto(deckUrl, { 
+        waitUntil: 'networkidle0',
+        timeout: 30000 
+      });
+      
+      await delay(3000);
 
       const deckInfo = await page.evaluate(() => {
-        const container = document.querySelector('.decklist-container');
-        const cards = Array.from(container?.querySelectorAll('.card') || []);
+        // Tenta diferentes seletores para o container
+        const container = document.querySelector('.decklist-container, .deck-list, [class*="decklist"]');
+        
+        if (!container) {
+          return { error: 'Container não encontrado', totalCards: 0 };
+        }
+        
+        // Tenta encontrar cards
+        const cards = Array.from(container.querySelectorAll('.card, [class*="card"], [class*="Card"]'));
         
         return {
-          cards: cards.map(card => ({
-            name: card.querySelector('.card-name')?.textContent?.trim(),
-            count: card.querySelector('.card-count')?.textContent?.trim()
+          cards: cards.slice(0, 60).map(card => ({
+            name: card.querySelector('.card-name, .name, [class*="name"]')?.textContent?.trim(),
+            count: card.querySelector('.card-count, .count, [class*="count"]')?.textContent?.trim()
           })),
-          totalCards: cards.length
+          totalCards: cards.length,
+          containerFound: true
         };
       });
 
       return deckInfo;
     } catch (error) {
       DeckScraperLogger.error('Erro ao buscar informações do deck', error);
-      return null;
+      return { error: 'Falha ao buscar informações', totalCards: 0 };
     }
   });
 }
 
-// Função de saúde para verificar se o site está acessível
 export async function checkWebsiteHealth(): Promise<boolean> {
   try {
     return await withPage(async (page) => {
@@ -220,7 +416,9 @@ export async function checkWebsiteHealth(): Promise<boolean> {
         waitUntil: 'networkidle2',
         timeout: 15000 
       });
-      return response?.status() === 200;
+      const isOk = response?.status() === 200;
+      DeckScraperLogger.info(`Health check: ${isOk ? 'OK' : 'FAILED'} (status: ${response?.status()})`);
+      return isOk;
     });
   } catch (error) {
     DeckScraperLogger.error('Site não está acessível', error);
