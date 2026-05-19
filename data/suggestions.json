@@ -12,5 +12,17 @@
     "voters": [
       7691530294
     ]
+  },
+  {
+    "id": "1779213799099",
+    "userId": 7691530294,
+    "username": "danielcolodete",
+    "firstName": "Daniel",
+    "suggestion": "focar o screenshoot somente no DECK.",
+    "category": "other",
+    "status": "pending",
+    "createdAt": "2026-05-19T18:03:19.099Z",
+    "votes": 0,
+    "voters": []
   }
 ]
