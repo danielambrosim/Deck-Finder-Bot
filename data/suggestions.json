@@ -1,0 +1,16 @@
+[
+  {
+    "id": "1779209021367",
+    "userId": 7691530294,
+    "username": "danielcolodete",
+    "firstName": "Daniel",
+    "suggestion": "crie um banco de dados para guardar as fotos dos decks",
+    "category": "feature",
+    "status": "pending",
+    "createdAt": "2026-05-19T16:43:41.367Z",
+    "votes": 1,
+    "voters": [
+      7691530294
+    ]
+  }
+]
